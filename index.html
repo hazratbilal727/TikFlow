@@ -590,6 +590,106 @@
       text-transform: uppercase;
     }
 
+    /* ============================================
+       ENHANCED QUALITY SELECTOR
+    ============================================ */
+    .quality-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .quality-best-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(6,182,212,0.12));
+      color: var(--blue-600);
+      border: 1px solid rgba(37,99,235,0.2);
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.02em;
+    }
+    [data-theme="dark"] .quality-best-badge { color: var(--cyan-400); border-color: rgba(34,211,238,0.25); }
+    .quality-best-badge:hover { background: linear-gradient(135deg, rgba(37,99,235,0.18), rgba(6,182,212,0.18)); }
+    .quality-best-badge svg { width: 10px; height: 10px; }
+
+    .quality-option {
+      position: relative;
+      overflow: hidden;
+    }
+    .quality-option.checking {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .quality-option.unavailable {
+      opacity: 0.35;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
+    .quality-left { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+    .quality-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+    .quality-name { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); }
+    .quality-meta { font-size: 0.72rem; color: var(--text-muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .quality-meta-sep { color: var(--border-2); }
+    .quality-size { font-size: 0.72rem; color: var(--text-muted); }
+    .quality-badge {
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--grad-main);
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .quality-badge.badge-4k { background: linear-gradient(135deg, #7c3aed, #a855f7); }
+    .quality-badge.badge-2k { background: linear-gradient(135deg, #2563eb, #0891b2); }
+    .quality-badge.badge-fhd { background: linear-gradient(135deg, #059669, #06b6d4); }
+    .quality-badge.badge-hd { background: linear-gradient(135deg, #2563eb, #06b6d4); }
+    .quality-badge.badge-audio { background: linear-gradient(135deg, #d97706, #f59e0b); }
+    .quality-check-icon {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: var(--blue-500);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .quality-option.selected .quality-check-icon { opacity: 1; }
+    .quality-option.selected .quality-right { padding-right: 20px; }
+
+    /* Quality loading skeleton */
+    .quality-skeleton {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .quality-skeleton-item {
+      height: 58px;
+      border-radius: var(--radius-sm);
+      border: 1.5px solid var(--border);
+    }
+
+    /* Download btn states */
+    .btn-download-video:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important; }
+    .btn-download-video.loading {
+      background: linear-gradient(135deg, #1e40af, #0e7490);
+      pointer-events: none;
+    }
+    .btn-download-video.success-state {
+      background: linear-gradient(135deg, #059669, #06b6d4);
+    }
+
     /* Progress */
     .download-progress { display: none; margin-top: 14px; }
     .download-progress.active { display: block; }
@@ -912,6 +1012,16 @@
       #toast-container { left: 16px; right: 16px; bottom: 16px; }
       .toast { min-width: 0; }
     }
+
+    .footer-copy a {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.footer-copy a:hover {
+  text-decoration: underline;
+}
   </style>
 </head>
 <body>
@@ -1027,8 +1137,7 @@
             </span>
           </div>
           <div style="margin-top: auto; padding-top: 12px;">
-            <div class="download-options-label">Select Quality</div>
-            <div class="quality-grid" id="quality-grid"></div>
+            <div class="quality-grid" id="quality-grid" style="grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));"></div>
           </div>
         </div>
       </div>
@@ -1133,6 +1242,19 @@
   let currentVideo = null;
   let selectedQuality = 'hd';
   let downloadHistory = JSON.parse(localStorage.getItem('tikflow_history') || '[]');
+  let isDownloading = false;
+
+  /* Quality definitions — ordered best to lowest */
+  const QUALITY_DEFS = [
+    { id: 'best',  label: '⭐ Best Quality', res: null,   badge: 'Auto',  badgeClass: 'badge-hd',  fileType: 'MP4', isBest: true },
+    { id: '4k',    label: '2160p',           res: '2160p', badge: '4K',    badgeClass: 'badge-4k',  fileType: 'MP4' },
+    { id: '2k',    label: '1440p',           res: '1440p', badge: '2K',    badgeClass: 'badge-2k',  fileType: 'MP4' },
+    { id: 'fhd',   label: '1080p',           res: '1080p', badge: 'FHD',   badgeClass: 'badge-fhd', fileType: 'MP4' },
+    { id: 'hd',    label: '720p',            res: '720p',  badge: 'HD',    badgeClass: 'badge-hd',  fileType: 'MP4' },
+    { id: 'sd',    label: '480p',            res: '480p',  badge: null,    badgeClass: '',           fileType: 'MP4' },
+    { id: 'ld',    label: '360p',            res: '360p',  badge: null,    badgeClass: '',           fileType: 'MP4' },
+    { id: 'music', label: 'Audio Only',      res: null,    badge: 'MP3',   badgeClass: 'badge-audio', fileType: 'MP3' },
+  ];
 
   /* =============================================
      THEME
@@ -1200,8 +1322,7 @@
   }
 
   /* =============================================
-     VIDEO FETCH — Uses tikvang / tikwm public API
-     (free, no key required)
+     VIDEO FETCH — Uses tikwm public API (free, no key required)
   ============================================= */
   async function fetchVideo() {
     const url = urlInput.value.trim();
@@ -1220,7 +1341,7 @@
     hideResult();
 
     try {
-      // Using tikwm.com public API — no key required
+      // Using tikwm.com public API — no key required, hd=1 requests HD stream
       const apiURL = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}&hd=1`;
       const res = await fetch(apiURL, { method: 'GET' });
 
@@ -1234,6 +1355,7 @@
 
       const data = json.data;
 
+      // Store all available stream URLs from the API response
       currentVideo = {
         url,
         id: data.id,
@@ -1242,11 +1364,15 @@
         authorId: data.author?.unique_id || '',
         thumb: data.cover || data.origin_cover || '',
         duration: data.duration || 0,
-        hdPlay: data.hdplay || data.play || '',
-        sdPlay: data.play || '',
-        musicPlay: data.music || '',
+        // Stream URLs — tikwm provides hdplay (up to 1080p) and play (SD)
+        hdPlay:    data.hdplay || data.play || '',
+        sdPlay:    data.play   || '',
+        musicPlay: data.music  || '',
+        // Sizes
         hdSize: data.hd_size || data.size || 0,
         sdSize: data.size || 0,
+        // Raw API extras for quality mapping
+        _raw: data,
         timestamp: Date.now(),
       };
 
@@ -1272,34 +1398,153 @@
     document.getElementById('video-duration').textContent = formatDuration(v.duration);
     document.getElementById('video-size').textContent = v.hdSize ? formatSize(v.hdSize) : '—';
 
-    // Quality options
-    const grid = document.getElementById('quality-grid');
-    grid.innerHTML = '';
-    const opts = [];
-    if (v.hdPlay) opts.push({ id: 'hd', label: 'HD 720p', size: v.hdSize, badge: 'Best' });
-    if (v.sdPlay) opts.push({ id: 'sd', label: 'SD 480p', size: v.sdSize });
-    if (v.musicPlay) opts.push({ id: 'music', label: 'Audio only', size: null });
-
-    opts.forEach((o, i) => {
-      const el = document.createElement('div');
-      el.className = 'quality-option' + (i === 0 ? ' selected' : '');
-      el.onclick = () => selectQuality(o.id);
-      el.dataset.quality = o.id;
-      el.innerHTML = `
-        <div>
-          <div class="quality-name">${o.label}</div>
-          ${o.size ? `<div class="quality-size">${formatSize(o.size)}</div>` : ''}
-        </div>
-        ${o.badge ? `<span class="quality-badge">${o.badge}</span>` : ''}
-      `;
-      grid.appendChild(el);
-    });
-
-    selectedQuality = opts[0]?.id || 'hd';
+    // Build available quality options from API response
+    buildQualityOptions(v);
 
     const card = document.getElementById('result-card');
     card.classList.add('visible');
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  /* =============================================
+     QUALITY DETECTION & RENDERING
+  ============================================= */
+  function resolveQualityURL(qualityId, v) {
+    const d = v._raw || {};
+    switch (qualityId) {
+      case 'best': return d.hdplay || d.play || v.hdPlay || '';
+      case '4k':   return d['4k'] || d.play_4k || '';
+      case '2k':   return d['2k'] || d.play_2k || '';
+      case 'fhd':  return d.hdplay || ''; // tikwm hdplay is typically 1080p
+      case 'hd':   return d.hdplay || d.play || v.hdPlay || '';
+      case 'sd':   return d.play || v.sdPlay || '';
+      case 'ld':   return d.play || v.sdPlay || ''; // fallback
+      case 'music':return d.music || v.musicPlay || '';
+      default:     return '';
+    }
+  }
+
+  function estimateSizeForQuality(qualityId, v) {
+    const duration = v.duration || 0;
+    // Rough bitrate estimates (bytes/sec) per quality level
+    const bitrates = { '4k': 8000000/8, '2k': 4000000/8, 'fhd': 2000000/8, 'hd': 1000000/8, 'sd': 500000/8, 'ld': 300000/8 };
+    if (qualityId === 'best' || qualityId === 'fhd') return v.hdSize || 0;
+    if (qualityId === 'hd')  return v.hdSize || 0;
+    if (qualityId === 'sd')  return v.sdSize || 0;
+    if (bitrates[qualityId] && duration) return Math.round(bitrates[qualityId] * duration);
+    return 0;
+  }
+
+  function buildQualityOptions(v) {
+    const grid = document.getElementById('quality-grid');
+    const d = v._raw || {};
+
+    // Determine which quality IDs are available
+    // tikwm API: hdplay = up to 1080p no-wm, play = SD no-wm, music = audio
+    // 4K/2K URLs are rarely available but check for them in raw data
+    const available = [];
+
+    // "Best Quality" is always available if any video URL exists
+    if (d.hdplay || d.play || v.hdPlay) {
+      available.push({ id: 'best', url: d.hdplay || d.play || v.hdPlay, size: v.hdSize || v.sdSize });
+    }
+
+    // 4K — only if API returns explicit 4k field
+    if (d['4k'] || d.play_4k) {
+      available.push({ id: '4k', url: d['4k'] || d.play_4k, size: estimateSizeForQuality('4k', v) });
+    }
+
+    // 2K — only if API returns explicit 2k field
+    if (d['2k'] || d.play_2k) {
+      available.push({ id: '2k', url: d['2k'] || d.play_2k, size: estimateSizeForQuality('2k', v) });
+    }
+
+    // 1080p FHD — if hdplay is available (tikwm hd=1 gives up to 1080p)
+    if (d.hdplay && d.hdplay !== d.play) {
+      available.push({ id: 'fhd', url: d.hdplay, size: v.hdSize || 0 });
+    }
+
+    // 720p HD — show if hdplay exists (same stream as FHD on most TikTok videos)
+    if (d.hdplay || d.play) {
+      // Only show as separate option if we don't already have FHD or they're the same
+      if (!d.hdplay || d.hdplay === d.play) {
+        available.push({ id: 'hd', url: d.hdplay || d.play, size: v.hdSize || v.sdSize });
+      }
+    }
+
+    // 480p SD — always available if play URL exists
+    if (d.play || v.sdPlay) {
+      available.push({ id: 'sd', url: d.play || v.sdPlay, size: v.sdSize || 0 });
+    }
+
+    // 360p — use SD URL as fallback (lower quality representation)
+    // Only show if SD is available (same URL, labeled differently)
+    // Skip to avoid duplication unless a distinct ld URL exists
+    if (d.play_ld) {
+      available.push({ id: 'ld', url: d.play_ld, size: estimateSizeForQuality('ld', v) });
+    }
+
+    // Audio only
+    if (d.music || v.musicPlay) {
+      available.push({ id: 'music', url: d.music || v.musicPlay, size: null });
+    }
+
+    // Store available map on video object for download
+    v._availableQualities = {};
+    available.forEach(a => { v._availableQualities[a.id] = { url: a.url, size: a.size }; });
+
+    // Render the grid
+    grid.innerHTML = '';
+
+    // Header row with "Best Quality" quick-select button
+    const headerRow = document.createElement('div');
+    headerRow.style.cssText = 'grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;';
+    headerRow.innerHTML = `
+      <span style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted)">Select Quality</span>
+      ${available.find(a => a.id === 'best') ? `
+      <button class="quality-best-badge" onclick="selectQuality('best')" title="Auto-select highest available resolution">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        Best Quality
+      </button>` : ''}
+    `;
+
+    // Remove the old label — it's now in the header row
+    const oldLabel = document.querySelector('.download-options-label');
+    if (oldLabel) oldLabel.style.display = 'none';
+
+    grid.appendChild(headerRow);
+
+    // Render each quality option
+    available.forEach((opt, i) => {
+      const def = QUALITY_DEFS.find(d => d.id === opt.id) || {};
+      const el = document.createElement('div');
+      el.className = 'quality-option' + (i === 0 ? ' selected' : '');
+      el.onclick = () => selectQuality(opt.id);
+      el.dataset.quality = opt.id;
+
+      const sizeText = opt.size ? formatSize(opt.size) : '';
+      const fileType = def.fileType || 'MP4';
+      const resLabel = def.res || '';
+
+      el.innerHTML = `
+        <div class="quality-left">
+          <div class="quality-name">${def.label || opt.id.toUpperCase()}</div>
+          <div class="quality-meta">
+            <span>${fileType}</span>
+            ${resLabel ? `<span class="quality-meta-sep">·</span><span>${resLabel}</span>` : ''}
+            ${sizeText ? `<span class="quality-meta-sep">·</span><span>${sizeText}</span>` : ''}
+          </div>
+        </div>
+        <div class="quality-right">
+          ${def.badge ? `<span class="quality-badge ${def.badgeClass || ''}">${def.badge}</span>` : ''}
+        </div>
+        <svg class="quality-check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      `;
+      grid.appendChild(el);
+    });
+
+    // Default to first option (Best Quality if available)
+    selectedQuality = available[0]?.id || 'hd';
   }
 
   function selectQuality(id) {
@@ -1318,34 +1563,59 @@
   ============================================= */
   async function startDownload() {
     if (!currentVideo) return;
+    if (isDownloading) {
+      showToast('info', 'Processing', 'A download is already in progress. Please wait.');
+      return;
+    }
 
+    const available = currentVideo._availableQualities || {};
     let downloadURL = '';
     let ext = 'mp4';
 
-    if (selectedQuality === 'hd') downloadURL = currentVideo.hdPlay;
-    else if (selectedQuality === 'sd') downloadURL = currentVideo.sdPlay;
-    else if (selectedQuality === 'music') { downloadURL = currentVideo.musicPlay; ext = 'mp3'; }
+    // Resolve URL from enhanced quality map, fallback to legacy fields
+    if (available[selectedQuality]) {
+      downloadURL = available[selectedQuality].url;
+    } else {
+      // Legacy fallback
+      if (selectedQuality === 'hd' || selectedQuality === 'fhd' || selectedQuality === 'best') downloadURL = currentVideo.hdPlay;
+      else if (selectedQuality === 'sd' || selectedQuality === 'ld') downloadURL = currentVideo.sdPlay;
+      else if (selectedQuality === 'music') { downloadURL = currentVideo.musicPlay; ext = 'mp3'; }
+    }
+
+    if (selectedQuality === 'music') ext = 'mp3';
 
     if (!downloadURL) {
-      showToast('error', 'No URL', 'Download URL not available for this quality.');
+      showToast('error', 'Not Available', 'Download URL is not available for this quality. Try another option.');
       return;
     }
+
+    isDownloading = true;
+    const btn = document.getElementById('download-btn');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    btn.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 1s linear infinite;width:18px;height:18px"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Preparing Download…
+    `;
 
     // Show progress
     const progressEl = document.getElementById('download-progress');
     const progressFill = document.getElementById('progress-fill');
     const progressText = document.getElementById('progress-text');
     progressEl.classList.add('active');
+    progressFill.style.width = '0%';
+    progressText.textContent = 'Connecting to server…';
 
     let prog = 0;
     const tick = setInterval(() => {
-      prog = Math.min(prog + Math.random() * 12, 90);
+      prog = Math.min(prog + Math.random() * 15, 88);
       progressFill.style.width = prog + '%';
-      progressText.textContent = `Downloading… ${Math.round(prog)}%`;
+      if (prog < 30) progressText.textContent = 'Connecting to server…';
+      else if (prog < 60) progressText.textContent = 'Fetching stream…';
+      else progressText.textContent = `Downloading… ${Math.round(prog)}%`;
     }, 200);
 
     try {
-      // Trigger browser download via anchor
       const a = document.createElement('a');
       a.href = downloadURL;
       a.download = `tiktok_${currentVideo.id || Date.now()}.${ext}`;
@@ -1355,21 +1625,45 @@
       a.click();
       document.body.removeChild(a);
 
+      // Complete progress
       clearInterval(tick);
       progressFill.style.width = '100%';
-      progressText.textContent = 'Download started!';
+      progressText.textContent = 'Download started successfully!';
+
+      // Success state on button
+      btn.classList.remove('loading');
+      btn.classList.add('success-state');
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Download Started!
+      `;
+
       setTimeout(() => {
         progressEl.classList.remove('active');
         progressFill.style.width = '0%';
-      }, 2500);
+        btn.disabled = false;
+        btn.classList.remove('loading', 'success-state');
+        btn.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Without Watermark
+        `;
+        isDownloading = false;
+      }, 3000);
 
-      showToast('success', 'Download Started', 'Your video is being downloaded.');
+      showToast('success', 'Download Started', 'Your video is being downloaded to your device.');
       addToHistory(currentVideo);
 
     } catch (e) {
       clearInterval(tick);
       progressEl.classList.remove('active');
-      showToast('error', 'Download Failed', 'Could not initiate download. Try again.');
+      btn.disabled = false;
+      btn.classList.remove('loading', 'success-state');
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download Without Watermark
+      `;
+      isDownloading = false;
+      showToast('error', 'Download Failed', 'Could not initiate download. Please try again or choose a different quality.');
     }
   }
 
