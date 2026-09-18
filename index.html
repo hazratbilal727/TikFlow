@@ -1026,79 +1026,9 @@
 .footer-copy a:hover {
   text-decoration: underline;
 }
-
-/* ============================================
-   APP SPLASH SCREEN (in-app loading screen)
-============================================ */
-.app-splash {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  background: var(--grad-hero);
-  transition: opacity 0.5s ease, visibility 0.5s ease;
-}
-.app-splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
-.splash-icon {
-  width: 88px;
-  height: 88px;
-  border-radius: 22px;
-  background: var(--grad-main);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 16px 44px rgba(37,99,235,0.4);
-}
-.splash-icon svg { width: 46px; height: 46px; fill: white; }
-.splash-title {
-  font-family: 'Syne', sans-serif;
-  font-weight: 700;
-  font-size: 1.7rem;
-  color: #ffffff;
-  letter-spacing: -0.02em;
-}
-.splash-sub {
-  font-size: 0.85rem;
-  color: rgba(255,255,255,0.55);
-  margin-top: -12px;
-}
-.splash-spinner {
-  width: 30px;
-  height: 30px;
-  margin-top: 6px;
-  border-radius: 50%;
-  border: 3px solid rgba(255,255,255,0.15);
-  border-top-color: #22d3ee;
-  animation: splash-spin 0.8s linear infinite;
-}
-@keyframes splash-spin { to { transform: rotate(360deg); } }
-.splash-credit {
-  position: absolute;
-  bottom: 28px;
-  font-size: 0.75rem;
-  color: rgba(255,255,255,0.4);
-  letter-spacing: 0.02em;
-}
   </style>
 </head>
 <body>
-
-<!-- ============ APP SPLASH SCREEN ============ -->
-<div id="app-splash" class="app-splash">
-  <div class="splash-icon">
-    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.17 8.17 0 004.77 1.52V6.78a4.85 4.85 0 01-1-.09z"/>
-    </svg>
-  </div>
-  <div class="splash-title">TikFlow</div>
-  <div class="splash-sub">TikTok Video Downloader</div>
-  <div class="splash-spinner"></div>
-  <div class="splash-credit">Developed by Hazrat Bilal</div>
-</div>
 
 <!-- ============ HEADER ============ -->
 <header>
@@ -1931,25 +1861,6 @@
      INIT
   ============================================= */
   renderHistory(downloadHistory);
-
-  /* =============================================
-     APP SPLASH SCREEN
-  ============================================= */
-  (function () {
-    var splash = document.getElementById('app-splash');
-    if (!splash) return;
-    var minVisible = 900; // ms — keep the splash visible at least this long
-    var startedAt = Date.now();
-    function dismiss() {
-      var wait = Math.max(0, minVisible - (Date.now() - startedAt));
-      setTimeout(function () {
-        splash.classList.add('hide');
-        setTimeout(function () { splash.remove(); }, 550);
-      }, wait);
-    }
-    if (document.readyState === 'complete') dismiss();
-    else window.addEventListener('load', dismiss);
-  })();
 </script>
 </body>
 </html>
