@@ -1235,6 +1235,16 @@
   </div>
 </footer>
 
+<!-- ============ EMPTY POPUP ============ -->
+<div class="modal-overlay" id="empty-modal" onclick="if(event.target===this)closeEmptyPopup()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="empty-modal-title">
+    <div class="modal-title" id="empty-modal-title">Ta da Bilal na tapos kry dy chi<br>Free app use ky 😂</div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeEmptyPopup()">OK</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ TOAST CONTAINER ============ -->
 <div id="toast-container"></div>
 
@@ -1294,6 +1304,44 @@
     if (e.key === 'Enter') fetchVideo();
   });
 
+  // Only TikTok links are accepted; anything else gets an error toast
+  function handleLinkInput() {
+    const url = urlInput.value.trim();
+    if (!url) return;
+    if (!isValidTikTokURL(url)) {
+      showToast('error', 'Invalid URL', 'Only TikTok links are accepted.');
+      return;
+    }
+    showEmptyPopup();
+  }
+
+  let isProcessing = false;
+  // Show the normal "processing" state first, then reveal the popup text
+  function showEmptyPopup() {
+    if (isProcessing) return;
+    isProcessing = true;
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      isProcessing = false;
+      document.getElementById('empty-modal').classList.add('active');
+    }, 1800);
+  }
+  // OK / close: return the app to its start-up state
+  function closeEmptyPopup() {
+    document.getElementById('empty-modal').classList.remove('active');
+    urlInput.value = '';
+    clearBtn.classList.remove('visible');
+    hideResult();
+    currentVideo = null;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.getElementById('empty-modal').classList.contains('active')) closeEmptyPopup(); });
+  // Pasting a link directly into the input also shows the popup
+  urlInput.addEventListener('paste', () => setTimeout(() => {
+    handleLinkInput();
+  }, 0));
+
   function clearInput() {
     urlInput.value = '';
     clearBtn.classList.remove('visible');
@@ -1305,7 +1353,7 @@
       const text = await navigator.clipboard.readText();
       urlInput.value = text;
       clearBtn.classList.toggle('visible', text.length > 0);
-      showToast('info', 'Pasted', 'URL pasted from clipboard');
+      handleLinkInput();
     } catch {
       showToast('error', 'Clipboard Error', 'Could not read clipboard. Please paste manually.');
     }
@@ -1322,7 +1370,7 @@
      URL VALIDATION
   ============================================= */
   function isValidTikTokURL(url) {
-    return /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\/.+/.test(url.trim());
+    return /^https?:\/\/(www\.|m\.|vm\.|vt\.)?tiktok\.com\/.+/.test(url.trim());
   }
 
   /* =============================================
@@ -1336,59 +1384,9 @@
       urlInput.focus();
       return;
     }
-    if (!isValidTikTokURL(url)) {
-      showToast('error', 'Invalid URL', 'Please enter a valid TikTok video URL.');
-      return;
-    }
-
-    setLoading(true);
+    // Download/fetch disabled: a pasted link only shows the popup
     hideResult();
-
-    try {
-      // Using tikwm.com public API — no key required, hd=1 requests HD stream
-      const apiURL = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}&hd=1`;
-      const res = await fetch(apiURL, { method: 'GET' });
-
-      if (!res.ok) throw new Error(`API responded with ${res.status}`);
-
-      const json = await res.json();
-
-      if (json.code !== 0 || !json.data) {
-        throw new Error(json.msg || 'Could not fetch video data');
-      }
-
-      const data = json.data;
-
-      // Store all available stream URLs from the API response
-      currentVideo = {
-        url,
-        id: data.id,
-        title: data.title || 'TikTok Video',
-        author: data.author?.nickname || data.author?.unique_id || 'Unknown',
-        authorId: data.author?.unique_id || '',
-        thumb: data.cover || data.origin_cover || '',
-        duration: data.duration || 0,
-        // Stream URLs — tikwm provides hdplay (up to 1080p) and play (SD)
-        hdPlay:    data.hdplay || data.play || '',
-        sdPlay:    data.play   || '',
-        musicPlay: data.music  || '',
-        // Sizes
-        hdSize: data.hd_size || data.size || 0,
-        sdSize: data.size || 0,
-        // Raw API extras for quality mapping
-        _raw: data,
-        timestamp: Date.now(),
-      };
-
-      renderResult(currentVideo);
-      showToast('success', 'Video Found!', 'Ready to download without watermark.');
-
-    } catch (err) {
-      console.error('[TikFlow]', err);
-      showToast('error', 'Fetch Failed', err.message || 'Could not load video. Check the URL and try again.');
-    } finally {
-      setLoading(false);
-    }
+    handleLinkInput();
   }
 
   /* =============================================
@@ -1736,7 +1734,8 @@
 
   function reDownload(e, url, id) {
     e.stopPropagation();
-    if (!url) { showToast('error', 'No URL', 'Download URL not available.'); return; }
+    showEmptyPopup();
+    return;
     const a = document.createElement('a');
     a.href = url;
     a.download = `tiktok_${id || Date.now()}.mp4`;
